@@ -1,0 +1,277 @@
+#!/usr/local/bin/bash
+############################################################################
+# Script requires Bash 4 for associative arrays
+# 
+# 
+############################################################################
+trap cleanup EXIT 
+
+SCRIPTDIR=$(dirname $0)
+SCRIPTDIR=$(cd "$SCRIPTDIR" && pwd )
+SCRIPTNAME=$(basename $0)
+BUILDDIR=$SCRIPTDIR/build
+LIBDIR=$BUILDDIR/lib
+LIBNAME=gmp
+VERSION=6.1.0
+SOFTWARETAR="$SCRIPTDIR/$LIBNAME-$VERSION.tar.bz2"
+
+# Architectures for running on a device.
+DEVARCHS="armv7 armv7s arm64"
+# Architectures for running on a simulator.
+SIMARCHS="i386 x86_64" 
+
+# define the platforms as an associative array
+declare -A PLATFORMS=( ["iphoneos"]=$DEVARCHS ["iphonesimulator"]=$SIMARCHS)
+
+
+DEVDIR=/Applications/Xcode.app/Contents/Developer/Platforms
+IOSVERSIONMIN=7.0
+MACOSXVERSIONMIN=10.0
+
+CONFIGSCRIPT=$(mktemp -t $SCRIPTNAME)
+
+#
+# cleanup
+#
+cleanup()
+{ logMsg "cleanup"
+
+  [ -f "$CONFIGSCRIPT"        ] && rm "$CONFIGSCRIPT"
+}
+
+#
+# log to file
+# logMsg <msg>
+#
+logMsg()
+{
+  printf "[%11s] %s %s \n" $SCRIPTNAME "$(date +'%H:%M:%S')" "$1"
+  
+}
+
+#
+# errorExit <number> <message>
+#
+errorExit()
+{ local exitNo=$1
+  shift
+  
+  logMsg "$@"
+  logMsg "NOT SUCCESSFUL"
+  exit $exitNo
+}
+
+#
+# $1: name
+#
+extractSoftware()
+{ local name=$1
+  local extractdir="$BUILDDIR/$name"
+  
+  [ -d "$extractdir" ] || mkdir -p "$extractdir"
+  
+  cd "$extractdir"
+
+    if [ ! -e $SOFTWARETAR ]; then
+        echo "Downloading $SOFTWARETAR"
+            ipfs cat QmNmw2E1WkBrEk44ZYhJP2iRnYokaRBi2qfbjYAEVqs1vp > $SOFTWARETAR 
+        else
+            echo "Using $SOFTWARETAR"
+    fi  
+
+    logMsg "extract software for $name..."
+    tar -xf "$SOFTWARETAR" --strip-components 1
+}
+
+#
+# $1: name
+#
+configureSoftware()
+{ 
+    local platform=$1
+    local arch=$2
+    local extractdir="$BUILDDIR/$platform"
+    local sdkpath=$(xcrun --sdk $platform --show-sdk-path)
+    local localdev="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain"
+    local host="arm-apple-darwin"
+    local commonparam="--disable-shared --enable-static"
+
+   echo "configureSoftware $platform $arch" 
+   echo "$sdkpath" 
+ 
+  if [ "$platform" == "iphoneos" -o "$platform" == "iphonesimulator" ]; then
+
+    cat >"$CONFIGSCRIPT" << EOF
+#!/bin/sh
+
+[ -d "$extractdir" ] || mkdir -p "$extractdir"
+cd "$extractdir"
+./configure \
+CC=$(xcrun --sdk $platform -f clang)" -fembed-bitcode -arch "$arch" --sysroot="$sdkpath \
+CPP=$(xcrun --sdk $platform -f clang)" -E -fembed-bitcode -arch "$arch" --sysroot="$sdkpath \
+CPPFLAGS="-fembed-bitcode -arch $arch --sysroot=$sdkpath -miphoneos-version-min=$IOSVERSIONMIN" \
+LDFLAGS=" -fembed-bitcode -arch "$arch" --sysroot="$sdkpath \
+$commonparam --prefix=$localdev/usr/local --host=$host --disable-assembly
+
+EOF
+  else
+    cat >"$CONFIGSCRIPT" << EOF
+#!/bin/sh
+
+cd "$extractdir"
+./configure $commonparam --with-pic CPPFLAGS="-mmacosx-version-min=$MACOSXVERSIONMIN"
+
+EOF
+
+	fi
+	
+	chmod +x "$CONFIGSCRIPT"
+  $CONFIGSCRIPT	
+}
+
+#
+# $1: name
+#
+makeSoftware()
+{ 
+    local platform=$1
+    local arch=$2
+
+   echo "makeSoftware $platform $arch" 
+return
+    local name=$1
+  local extractdir="$BUILDDIR/$name"
+
+  logMsg "make software for $name..."
+  cd "$extractdir"
+  make
+  
+  if [ "$name" == "MacOSX" ] ; then
+    logMsg "check result..."
+    make check
+  fi
+  
+  [ -d "$LIBDIR" ] || mkdir -p "$LIBDIR"
+  
+  logMsg "copy result to $LIBDIR..."
+  cp .libs/lib$LIBNAME.a "$LIBDIR/lib$LIBNAME-$name.a"
+}
+
+#
+# $1:framework name
+# $2:framework version
+#
+createFramework()
+{ local FRAMEWORK_NAME=$1
+	local FRAMEWORK_VERSION=$2
+	local FRAMEWORK_DIR0="$BUILDDIR/$FRAMEWORK_NAME.framework"
+	local FRAMEWORK_DIR1="$FRAMEWORK_DIR0/Versions/$FRAMEWORK_VERSION"
+	local SHARED_LIBRARY_FRAMEWORKS="/Users/Shared/Library/Frameworks"
+
+	[ -d "${FRAMEWORK_DIR1}" ]           || mkdir -p "${FRAMEWORK_DIR1}"
+	[ -d "${FRAMEWORK_DIR1}/Resources" ] || mkdir -p "${FRAMEWORK_DIR1}/Resources"
+	[ -d "${FRAMEWORK_DIR1}/Headers" ]   || mkdir -p "${FRAMEWORK_DIR1}/Headers"
+
+	logMsg "creating framework..."
+
+	lipo \
+	-create \
+	"$LIBDIR/lib$LIBNAME-MacOSX.a" \
+	"$LIBDIR/lib$LIBNAME-iPhoneOS.a" \
+	"$LIBDIR/lib$LIBNAME-iPhoneSimulator.a" \
+	-o "${FRAMEWORK_DIR1}/${FRAMEWORK_NAME}"
+
+	logMsg "Coping headers..."
+	cp "$BUILDDIR/MacOSX/$LIBNAME.h"           "${FRAMEWORK_DIR1}/Headers/$LIBNAME-MacOSX.h"
+  cp "$BUILDDIR/iPhoneOS/$LIBNAME.h"         "${FRAMEWORK_DIR1}/Headers/$LIBNAME-iPhoneOS.h"
+  cp "$BUILDDIR/iPhoneSimulator/$LIBNAME.h"  "${FRAMEWORK_DIR1}/Headers/$LIBNAME-iPhoneSimulator.h"
+  cp "$SCRIPTDIR/$LIBNAME.h"                 "${FRAMEWORK_DIR1}/Headers/$LIBNAME.h"
+
+	logMsg "Creating symlinks..."
+	ln -fs "$FRAMEWORK_VERSION"                          "$FRAMEWORK_DIR0/Versions/Current"
+	ln -fs "Versions/$FRAMEWORK_VERSION/Headers"         "$FRAMEWORK_DIR0/Headers"
+	ln -fs "Versions/$FRAMEWORK_VERSION/Resources"       "$FRAMEWORK_DIR0/Resources"
+	ln -fs "Versions/$FRAMEWORK_VERSION/$FRAMEWORK_NAME" "$FRAMEWORK_DIR0/$FRAMEWORK_NAME"
+
+	lipo "${FRAMEWORK_DIR1}/${FRAMEWORK_NAME}" -info
+
+  logMsg "copy $FRAMEWORK_NAME to shared users library..."
+  
+  [ -d "$SHARED_LIBRARY_FRAMEWORKS/$FRAMEWORK_NAME.framework" ] && rm -rf "$SHARED_LIBRARY_FRAMEWORKS/$FRAMEWORK_NAME.framework"
+  cp -R ${FRAMEWORK_DIR0} "$SHARED_LIBRARY_FRAMEWORKS"
+}
+
+	#
+# print help screen
+#
+printHelp()
+{ echo "$SCRIPTNAME [options] "
+  echo "  -c: clean"
+  echo "  -e: extract"
+  echo "  -g: config"
+  echo "  -f: create framework"
+  echo "  -b: build all"
+  echo
+
+  errorExit -1 "unknown options"
+}
+
+command=""
+
+while getopts gbefc? OPTION 
+do
+  case $OPTION in
+    g) command="config" ;;
+    e) command="extract" ;;
+    b) command="build" ;;
+    f) command="framework" ;;
+    c) command="clean" ;;
+   \?) printHelp;;
+  esac
+done
+
+ANZ=$(( $OPTIND-1 ))
+shift $ANZ
+
+
+if [ "$command" = "" ] ; then
+  printHelp
+fi
+
+case $command in
+  extract)
+    extractSoftware source
+    ;;
+  config)
+    configureSoftware iPhoneOS
+    ;;
+  build)
+    if [ -d "$BUILDDIR" ] ; then
+      logMsg "clean old build $BUILDDIR..."
+      rm -rf "$BUILDDIR"
+    fi
+    
+    extractSoftware source 
+
+echo ""
+    for PLATFORM in "${!PLATFORMS[@]}"; do
+        for ARCH in ${PLATFORMS[$PLATFORM]}; do
+            echo "configure and make $PLATFORM $ARCH"
+
+            configureSoftware $PLATFORM $ARCH
+            makeSoftware $PLATFORM $ARCH
+        done
+    
+    done
+    #createFramework lib$LIBNAME $VERSION
+    ;;
+  framework)
+    createFramework lib$LIBNAME $VERSION
+    ;;
+  clean)
+    logMsg "remove $BUILDDIR..."
+    rm -rf "$BUILDDIR"
+    ;;
+esac
+
+logMsg "OK"
