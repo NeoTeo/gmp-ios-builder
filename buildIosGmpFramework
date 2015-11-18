@@ -92,7 +92,7 @@ configureSoftware() {
     local localdev="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain"
     local host="arm-apple-darwin"
     local commonparam="--disable-shared --enable-static"
-
+    local etcflags="-fembed-bitcode -arch $arch --sysroot=$sdkpath"
     logMsg "Configure software for $platform $arch..."
 
   if [ "$platform" == "iphoneos" -o "$platform" == "iphonesimulator" ]; then
@@ -102,10 +102,8 @@ configureSoftware() {
 
 cd "$extractdir"
 ./configure \
-CC=$(xcrun --sdk $platform -f clang)" -fembed-bitcode -arch "$arch" --sysroot="$sdkpath \
-CPP=$(xcrun --sdk $platform -f clang)" -E -fembed-bitcode -arch "$arch" --sysroot="$sdkpath \
-CPPFLAGS="-fembed-bitcode -arch $arch --sysroot=$sdkpath -miphoneos-version-min=$IOSVERSIONMIN" \
-LDFLAGS=" -fembed-bitcode -arch "$arch" --sysroot="$sdkpath \
+CC="$(xcrun --sdk $platform -f clang) $etcflags" \
+CPPFLAGS="$etcflags -miphoneos-version-min=$IOSVERSIONMIN" \
 $commonparam --prefix=$localdev/usr/local --host=$host --disable-assembly
 
 EOF
