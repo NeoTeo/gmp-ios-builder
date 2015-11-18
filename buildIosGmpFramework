@@ -90,21 +90,20 @@ configureSoftware()
 { 
     local platform=$1
     local arch=$2
-    local extractdir="$BUILDDIR/$platform"
+    #local extractdir="$BUILDDIR/$platform"
+    local extractdir="$BUILDDIR/source"
     local sdkpath=$(xcrun --sdk $platform --show-sdk-path)
     local localdev="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain"
     local host="arm-apple-darwin"
     local commonparam="--disable-shared --enable-static"
 
-   echo "configureSoftware $platform $arch" 
-   echo "$sdkpath" 
- 
+    logMsg "Configure software for $platform $arch..."
+
   if [ "$platform" == "iphoneos" -o "$platform" == "iphonesimulator" ]; then
 
     cat >"$CONFIGSCRIPT" << EOF
 #!/bin/sh
 
-[ -d "$extractdir" ] || mkdir -p "$extractdir"
 cd "$extractdir"
 ./configure \
 CC=$(xcrun --sdk $platform -f clang)" -fembed-bitcode -arch "$arch" --sysroot="$sdkpath \
@@ -136,25 +135,20 @@ makeSoftware()
 { 
     local platform=$1
     local arch=$2
+    local extractdir="$BUILDDIR/source"
+    logMsg "make software for $platform $arch..."
+    cd "$extractdir"
+    make
 
-   echo "makeSoftware $platform $arch" 
-return
-    local name=$1
-  local extractdir="$BUILDDIR/$name"
-
-  logMsg "make software for $name..."
-  cd "$extractdir"
-  make
-  
-  if [ "$name" == "MacOSX" ] ; then
+    if [ "$name" == "MacOSX" ] ; then
     logMsg "check result..."
     make check
-  fi
-  
-  [ -d "$LIBDIR" ] || mkdir -p "$LIBDIR"
-  
-  logMsg "copy result to $LIBDIR..."
-  cp .libs/lib$LIBNAME.a "$LIBDIR/lib$LIBNAME-$name.a"
+    fi
+
+    [ -d "$LIBDIR" ] || mkdir -p "$LIBDIR"
+
+    logMsg "copy result to $LIBDIR..."
+    cp .libs/lib$LIBNAME.a "$LIBDIR/lib$LIBNAME-$platform$arch.a"
 }
 
 #
@@ -257,7 +251,7 @@ echo ""
     for PLATFORM in "${!PLATFORMS[@]}"; do
         for ARCH in ${PLATFORMS[$PLATFORM]}; do
             echo "configure and make $PLATFORM $ARCH"
-
+            make distclean
             configureSoftware $PLATFORM $ARCH
             makeSoftware $PLATFORM $ARCH
         done
