@@ -168,19 +168,22 @@ createFramework()
 
 	logMsg "creating framework..."
 
-	lipo \
-	-create \
-	"$LIBDIR/lib$LIBNAME-MacOSX.a" \
-	"$LIBDIR/lib$LIBNAME-iPhoneOS.a" \
-	"$LIBDIR/lib$LIBNAME-iPhoneSimulator.a" \
-	-o "${FRAMEWORK_DIR1}/${FRAMEWORK_NAME}"
+    local SOURCELIBS=""
+    for PLATFORM in "${!PLATFORMS[@]}"; do
+        for ARCH in ${PLATFORMS[$PLATFORM]}; do
+            SOURCELIBS=$SOURCELIBS" $LIBDIR/lib$LIBNAME-$PLATFORM$ARCH.a"
+        done
+    done
+    lipo -create $SOURCELIBS \
+    -o "${FRAMEWORK_DIR1}/${FRAMEWORK_NAME}"
 
-	logMsg "Coping headers..."
-	cp "$BUILDDIR/MacOSX/$LIBNAME.h"           "${FRAMEWORK_DIR1}/Headers/$LIBNAME-MacOSX.h"
-  cp "$BUILDDIR/iPhoneOS/$LIBNAME.h"         "${FRAMEWORK_DIR1}/Headers/$LIBNAME-iPhoneOS.h"
-  cp "$BUILDDIR/iPhoneSimulator/$LIBNAME.h"  "${FRAMEWORK_DIR1}/Headers/$LIBNAME-iPhoneSimulator.h"
-  cp "$SCRIPTDIR/$LIBNAME.h"                 "${FRAMEWORK_DIR1}/Headers/$LIBNAME.h"
+	logMsg "Copying headers..."
+	#cp "$BUILDDIR/MacOSX/$LIBNAME.h"           "${FRAMEWORK_DIR1}/Headers/$LIBNAME-MacOSX.h"
+    cp "$BUILDDIR/Headers/$LIBNAME-iphoneos.h"         "${FRAMEWORK_DIR1}/Headers/$LIBNAME-iPhoneOS.h"
+    cp "$BUILDDIR/Headers/$LIBNAME-iphonesimulator.h"  "${FRAMEWORK_DIR1}/Headers/$LIBNAME-iPhoneSimulator.h"
+    cp "$SCRIPTDIR/$LIBNAME.h"                 "${FRAMEWORK_DIR1}/Headers/$LIBNAME.h"
 
+	logMsg "Copying $SCRIPTDIR/$LIBNAME.h"
 	logMsg "Creating symlinks..."
 	ln -fs "$FRAMEWORK_VERSION"                          "$FRAMEWORK_DIR0/Versions/Current"
 	ln -fs "Versions/$FRAMEWORK_VERSION/Headers"         "$FRAMEWORK_DIR0/Headers"
@@ -189,6 +192,7 @@ createFramework()
 
 	lipo "${FRAMEWORK_DIR1}/${FRAMEWORK_NAME}" -info
 
+    return
   logMsg "copy $FRAMEWORK_NAME to shared users library..."
   
   [ -d "$SHARED_LIBRARY_FRAMEWORKS/$FRAMEWORK_NAME.framework" ] && rm -rf "$SHARED_LIBRARY_FRAMEWORKS/$FRAMEWORK_NAME.framework"
@@ -247,7 +251,6 @@ case $command in
     
     extractSoftware source 
 
-echo ""
     for PLATFORM in "${!PLATFORMS[@]}"; do
         for ARCH in ${PLATFORMS[$PLATFORM]}; do
             echo "configure and make $PLATFORM $ARCH"
@@ -255,9 +258,12 @@ echo ""
             configureSoftware $PLATFORM $ARCH
             makeSoftware $PLATFORM $ARCH
         done
-    
+        # copy the platform specific headers. 
+        [ -d "${BUILDDIR}/Headers" ]   || mkdir -p "${BUILDDIR}/Headers"
+        cp "$BUILDDIR/source/$LIBNAME.h"         "${BUILDDIR}/Headers/$LIBNAME-$PLATFORM.h"
     done
-    #createFramework lib$LIBNAME $VERSION
+    createFramework lib$LIBNAME $VERSION
+
     ;;
   framework)
     createFramework lib$LIBNAME $VERSION
