@@ -1,7 +1,9 @@
 #!/usr/local/bin/bash
 ############################################################################
-# Script requires Bash 4 for associative arrays
-# 
+#
+# Script requires Bash 4 for associative arrays.
+#
+# Based on the GMP4OSX script by https://github.com/ischlecken/gmp4osx
 # 
 ############################################################################
 trap cleanup EXIT 
@@ -30,53 +32,48 @@ MACOSXVERSIONMIN=10.0
 
 CONFIGSCRIPT=$(mktemp -t $SCRIPTNAME)
 
-#
 # cleanup
-#
-cleanup()
-{ logMsg "cleanup"
-
-  [ -f "$CONFIGSCRIPT"        ] && rm "$CONFIGSCRIPT"
+cleanup() { 
+    logMsg "cleanup"
+    [ -f "$CONFIGSCRIPT"        ] && rm "$CONFIGSCRIPT"
 }
 
 #
 # log to file
 # logMsg <msg>
 #
-logMsg()
-{
-  printf "[%11s] %s %s \n" $SCRIPTNAME "$(date +'%H:%M:%S')" "$1"
-  
+logMsg() {
+    printf "[%11s] %s %s \n" $SCRIPTNAME "$(date +'%H:%M:%S')" "$1"
 }
 
 #
 # errorExit <number> <message>
 #
-errorExit()
-{ local exitNo=$1
-  shift
+errorExit() { 
+    local exitNo=$1
+    shift
   
-  logMsg "$@"
-  logMsg "NOT SUCCESSFUL"
-  exit $exitNo
+    logMsg "$@"
+    logMsg "NOT SUCCESSFUL"
+    exit $exitNo
 }
 
 #
 # $1: name
 #
-extractSoftware()
-{ local name=$1
-  local extractdir="$BUILDDIR/$name"
+extractSoftware() { 
+    local name=$1
+    local extractdir="$BUILDDIR/$name"
   
-  [ -d "$extractdir" ] || mkdir -p "$extractdir"
+    [ -d "$extractdir" ] || mkdir -p "$extractdir"
   
-  cd "$extractdir"
+    cd "$extractdir"
 
     if [ ! -e $SOFTWARETAR ]; then
-        echo "Downloading $SOFTWARETAR"
-            ipfs cat QmNmw2E1WkBrEk44ZYhJP2iRnYokaRBi2qfbjYAEVqs1vp > $SOFTWARETAR 
-        else
-            echo "Using $SOFTWARETAR"
+    echo "Downloading $SOFTWARETAR"
+        ipfs cat QmNmw2E1WkBrEk44ZYhJP2iRnYokaRBi2qfbjYAEVqs1vp > $SOFTWARETAR 
+    else
+        echo "Using $SOFTWARETAR"
     fi  
 
     logMsg "extract software for $name..."
@@ -84,13 +81,12 @@ extractSoftware()
 }
 
 #
-# $1: name
+# $1: platform
+# $2: architecture
 #
-configureSoftware()
-{ 
+configureSoftware() { 
     local platform=$1
     local arch=$2
-    #local extractdir="$BUILDDIR/$platform"
     local extractdir="$BUILDDIR/source"
     local sdkpath=$(xcrun --sdk $platform --show-sdk-path)
     local localdev="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain"
@@ -129,10 +125,10 @@ EOF
 }
 
 #
-# $1: name
+# $1: platform
+# $2: architecture
 #
-makeSoftware()
-{ 
+makeSoftware() { 
     local platform=$1
     local arch=$2
     local extractdir="$BUILDDIR/source"
@@ -155,8 +151,8 @@ makeSoftware()
 # $1:framework name
 # $2:framework version
 #
-createFramework()
-{ local FRAMEWORK_NAME=$1
+createFramework() { 
+    local FRAMEWORK_NAME=$1
 	local FRAMEWORK_VERSION=$2
 	local FRAMEWORK_DIR0="$BUILDDIR/$FRAMEWORK_NAME.framework"
 	local FRAMEWORK_DIR1="$FRAMEWORK_DIR0/Versions/$FRAMEWORK_VERSION"
@@ -191,27 +187,19 @@ createFramework()
 	ln -fs "Versions/$FRAMEWORK_VERSION/$FRAMEWORK_NAME" "$FRAMEWORK_DIR0/$FRAMEWORK_NAME"
 
 	lipo "${FRAMEWORK_DIR1}/${FRAMEWORK_NAME}" -info
-
-    return
-  logMsg "copy $FRAMEWORK_NAME to shared users library..."
-  
-  [ -d "$SHARED_LIBRARY_FRAMEWORKS/$FRAMEWORK_NAME.framework" ] && rm -rf "$SHARED_LIBRARY_FRAMEWORKS/$FRAMEWORK_NAME.framework"
-  cp -R ${FRAMEWORK_DIR0} "$SHARED_LIBRARY_FRAMEWORKS"
 }
 
-	#
 # print help screen
-#
-printHelp()
-{ echo "$SCRIPTNAME [options] "
-  echo "  -c: clean"
-  echo "  -e: extract"
-  echo "  -g: config"
-  echo "  -f: create framework"
-  echo "  -b: build all"
-  echo
+printHelp() { 
+    echo "$SCRIPTNAME [options] "
+    echo "  -c: clean"
+    echo "  -e: extract"
+    echo "  -g: config"
+    echo "  -f: create framework"
+    echo "  -b: build all"
+    echo
 
-  errorExit -1 "unknown options"
+    errorExit -1 "unknown options"
 }
 
 command=""
