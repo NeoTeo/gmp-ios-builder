@@ -2,7 +2,7 @@
 
 Update gmp:
 * Download the desired version of GMP (as a `*.bz2`) to the `gmp-ios-builder` root folder from [gmplib.org](https://gmplib.org/#DOWNLOAD)
-* Update the `VERSION` field in `buildIosGmpFramework`;
+* Update the `VERSION` field in `buildIosGmpFramework`
 
 Clean:
 * `./buildIosGmpFramework -c`
