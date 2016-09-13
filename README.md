@@ -1,7 +1,7 @@
 # gmp-ios-builder
 
 Update gmp:
-* Download in the `gmp-ios-builder` folder the `*.bz2`  version from [https://gmplib.org/#DOWNLOAD](https://gmplib.org/#DOWNLOAD);
+* Download in the `gmp-ios-builder` folder the `*.bz2`  version from [gmplib.org](https://gmplib.org/#DOWNLOAD)
 * Update the `VERSION` field in `buildIosGmpFramework`;
 
 Clean:
@@ -13,7 +13,7 @@ Extract:
 Config:
 * `./buildIosGmpFramework -g`
 
-Build all (it requires few minutes):
+Build all (This can take a while):
 * `./buildIosGmpFramework -b`
 
 Build framework:
