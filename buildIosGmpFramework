@@ -14,7 +14,7 @@ SCRIPTNAME=$(basename $0)
 BUILDDIR=$SCRIPTDIR/build
 LIBDIR=$BUILDDIR/lib
 LIBNAME=gmp
-VERSION=6.1.0
+VERSION=6.1.1
 SOFTWARETAR="$SCRIPTDIR/$LIBNAME-$VERSION.tar.bz2"
 
 # Architectures for running on a device.
